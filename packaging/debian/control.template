@@ -1,0 +1,9 @@
+Package: graytail
+Version: __VERSION__
+Architecture: __ARCH__
+Maintainer: twiddlebits <28405084+bytetwiddler@users.noreply.github.com>
+Section: utils
+Priority: optional
+Description: Command-line tools for tailing and querying Graylog
+ graytail and grayquery are stdlib-only Go binaries for tailing and
+ querying Graylog over its HTTP search API.
