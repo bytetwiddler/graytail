@@ -35,18 +35,28 @@ func main() {
 	defaultPoll := graylog.GetenvDuration("POLL", 10*time.Second)
 	defaultLookback := graylog.GetenvString("LOOKBACK", "30")
 	defaultDupRetention := graylog.GetenvDuration("DUP_RETENTION", 1*time.Hour)
+	defaultFormat := graylog.GetenvString("FORMAT", "line")
 
 	var (
 		poll     = flag.Duration("poll", defaultPoll, "Polling interval between requests (or set POLL)")
 		lookback = flag.String("lookback", defaultLookback, "Initial lookback range in seconds (or set LOOKBACK)")
 		dupRet   = flag.Duration("dup-retention", defaultDupRetention, "How long to remember seen messages to avoid duplicates (e.g., 1h)")
 	)
+	var format, fieldsCSV string
+	flag.StringVar(&format, "format", defaultFormat, "Output format: line, text, json, or fields (or set FORMAT)")
+	flag.StringVar(&format, "o", defaultFormat, "Shorthand for --format")
+	flag.StringVar(&fieldsCSV, "fields", "", "Comma-separated field list for --format fields")
 	flag.Parse()
 
 	if err := cfg.Validate(); err != nil {
 		log.Fatalln(err)
 	}
 	cfg.ApplyDefaults()
+
+	fields := graylog.ParseFields(fieldsCSV)
+	if err := graylog.ValidateFormat(format, fields); err != nil {
+		log.Fatalln(err)
+	}
 
 	client := graylog.NewClient(cfg)
 
@@ -180,7 +190,12 @@ func main() {
 				continue
 			}
 
-			fmt.Println(graylog.FormatLine(msg))
+			line, err := graylog.FormatMessage(msg, format, fields)
+			if err != nil {
+				log.Printf("formatting message: %v\n", err)
+				continue
+			}
+			fmt.Println(line)
 			seen[key] = time.Now()
 
 			// Track max timestamp for range computation
