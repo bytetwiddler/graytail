@@ -43,7 +43,7 @@ func main() {
 	flag.StringVar(&end, "e", "", "Shorthand for --end")
 	flag.StringVar(&query, "query", "", "Graylog search query string (defaults to * ; may also be given positionally)")
 	flag.StringVar(&query, "q", "", "Shorthand for --query")
-	flag.StringVar(&format, "format", "line", "Output format: line, json, or fields")
+	flag.StringVar(&format, "format", "line", "Output format: line, text, json, or fields")
 	flag.StringVar(&format, "o", "line", "Shorthand for --format")
 	flag.StringVar(&fieldsCSV, "fields", "", "Comma-separated field list for --format fields")
 	flag.StringVar(&timezone, "timezone", defaultTimezone, "Timezone used to resolve --begin/--end (or set TIMEZONE)")
@@ -108,31 +108,11 @@ func buildKeyword(begin, end string) (string, error) {
 }
 
 func parseFields(csv string) []string {
-	if strings.TrimSpace(csv) == "" {
-		return nil
-	}
-	parts := strings.Split(csv, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
+	return graylog.ParseFields(csv)
 }
 
 func validateFormat(format string, fields []string) error {
-	switch format {
-	case "line", "json":
-		return nil
-	case "fields":
-		if len(fields) == 0 {
-			return errors.New("--format fields requires a non-empty --fields list")
-		}
-		return nil
-	default:
-		return fmt.Errorf("unknown --format %q (want line, json, or fields)", format)
-	}
+	return graylog.ValidateFormat(format, fields)
 }
 
 // collectMessages pages through the keyword search endpoint, advancing offset by
@@ -191,23 +171,12 @@ func sortByTimestamp(msgs []map[string]interface{}) {
 // render writes each message to w in the requested format.
 func render(w io.Writer, msgs []map[string]interface{}, format string, fields []string) error {
 	for _, msg := range msgs {
-		switch format {
-		case "json":
-			s, err := graylog.FormatJSON(msg)
-			if err != nil {
-				return err
-			}
-			if _, err := fmt.Fprintln(w, s); err != nil {
-				return err
-			}
-		case "fields":
-			if _, err := fmt.Fprintln(w, graylog.FormatFields(msg, fields)); err != nil {
-				return err
-			}
-		default: // line
-			if _, err := fmt.Fprintln(w, graylog.FormatLine(msg)); err != nil {
-				return err
-			}
+		s, err := graylog.FormatMessage(msg, format, fields)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(w, s); err != nil {
+			return err
 		}
 	}
 	return nil

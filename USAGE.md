@@ -46,6 +46,8 @@ arrived messages, like `tail -f`. Runs until interrupted (Ctrl+C / SIGTERM).
 | `POLL` | `-poll` | `10s` | Delay between the end of one poll cycle and the start of the next. |
 | `LOOKBACK` | `-lookback` | `30` | Initial lookback window, in seconds, used for the very first query (before any message has been seen). Also used as a fallback range if the last-seen timestamp can't be parsed. Passed straight through to Graylog's relative-search `range` parameter, hence it's a string, not a number. |
 | `DUP_RETENTION` | `-dup-retention` | `1h` | How long a message's dedup key is remembered. The in-memory dedup map is pruned every 5 minutes, discarding any key older than this. |
+| `FORMAT` | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, or `fields` — identical to `grayquery` (see [Output formats](#output-formats)). |
+| — | `--fields` | — | Comma-separated field list; required (non-empty) only when `--format fields`. Entries are trimmed of whitespace; blank entries are dropped. |
 
 ### How the poll loop works
 
@@ -76,8 +78,11 @@ arrived messages, like `tail -f`. Runs until interrupted (Ctrl+C / SIGTERM).
 - **Shutdown**: SIGINT or SIGTERM is caught; the loop finishes its current
   step, logs `shutting down`, and exits `0`. In-flight requests are also
   bounded by the shutdown context, so a slow request doesn't block exit.
-- **Output**: one line per new message, format `[timestamp] source: message`
-  — any field Graylog's response doesn't include renders as `<nil>`.
+- **Output**: one record per new message. The default `line` format is
+  `[timestamp] source: message` — any field Graylog's response doesn't include
+  renders as `<nil>`. `--format`/`-o` selects `text`, `json`, or `fields`
+  instead; the formats are identical to `grayquery`'s (see
+  [Output formats](#output-formats)).
 
 ### graytail examples (verified)
 
@@ -103,6 +108,14 @@ Stop with Ctrl+C (or send SIGTERM); confirmed it logs `shutting down` and
 exits cleanly rather than hanging or exiting abruptly.
 
 ```bash
+# Full GELF message as compact JSON, one object per new line
+graytail -o json
+
+# Full message as indented text (header line + every other field beneath it)
+graytail -o text
+```
+
+```bash
 # Skip TLS verification for a self-signed Graylog instance
 graytail -insecure
 ```
@@ -126,7 +139,7 @@ Graylog's keyword search endpoint, paginating until all matches are fetched
 | — | `--begin`, `-b` | — | Start of the time window. At least one of `--begin`/`--end` is required. |
 | — | `--end`, `-e` | — | End of the time window. |
 | — | `--query`, `-q` | `*` | Search query string. May also be given positionally (see below); defaults to `*` (match everything) if left empty. |
-| — | `--format`, `-o` | `line` | Output format: `line`, `json`, or `fields`. |
+| — | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, or `fields`. |
 | — | `--fields` | — | Comma-separated field list; required (non-empty) only when `--format fields`. Entries are trimmed of whitespace; blank entries are dropped. |
 | `TIMEZONE` | `--timezone`, `-tz` | `UTC` | Timezone Graylog uses to resolve `--begin`/`--end`. Graylog requires a non-empty value here, so leaving this unset always falls back to `UTC` rather than an empty string. |
 
@@ -161,6 +174,10 @@ Graylog's keyword search endpoint, paginating until all matches are fetched
 ### Output formats
 
 - **`line`** (default) — `[timestamp] source: message`, same as `graytail`.
+- **`text`** — the `line` header followed by every remaining field, sorted,
+  each on its own line indented four spaces beneath it. A full-fidelity text
+  view of the GELF message; message boundaries stay obvious because only the
+  header line is flush-left.
 - **`json`** — the complete raw message object as compact single-line JSON,
   one per line. This includes *every* field Graylog returned for that
   message, not just timestamp/source/message.
