@@ -43,9 +43,9 @@ func main() {
 	flag.StringVar(&end, "e", "", "Shorthand for --end")
 	flag.StringVar(&query, "query", "", "Graylog search query string (defaults to * ; may also be given positionally)")
 	flag.StringVar(&query, "q", "", "Shorthand for --query")
-	flag.StringVar(&format, "format", "line", "Output format: line, text, json, or fields")
+	flag.StringVar(&format, "format", "line", "Output format: line, text, json, fields, or logfmt")
 	flag.StringVar(&format, "o", "line", "Shorthand for --format")
-	flag.StringVar(&fieldsCSV, "fields", "", "Comma-separated field list for --format fields")
+	flag.StringVar(&fieldsCSV, "fields", "", "Comma-separated field list for --format fields or logfmt (implies --format fields when --format is not given)")
 	flag.StringVar(&timezone, "timezone", defaultTimezone, "Timezone used to resolve --begin/--end (or set TIMEZONE)")
 	flag.StringVar(&timezone, "tz", defaultTimezone, "Shorthand for --timezone")
 
@@ -67,6 +67,7 @@ func main() {
 	}
 
 	fields := parseFields(fieldsCSV)
+	format = graylog.ResolveFormat(format, graylog.FlagPassed(flag.CommandLine, "format", "o"), fields)
 	if err := validateFormat(format, fields); err != nil {
 		log.Fatalln(err)
 	}

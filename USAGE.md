@@ -46,8 +46,8 @@ arrived messages, like `tail -f`. Runs until interrupted (Ctrl+C / SIGTERM).
 | `POLL` | `-poll` | `10s` | Delay between the end of one poll cycle and the start of the next. |
 | `LOOKBACK` | `-lookback` | `30` | Initial lookback window, in seconds, used for the very first query (before any message has been seen). Also used as a fallback range if the last-seen timestamp can't be parsed. Passed straight through to Graylog's relative-search `range` parameter, hence it's a string, not a number. |
 | `DUP_RETENTION` | `-dup-retention` | `1h` | How long a message's dedup key is remembered. The in-memory dedup map is pruned every 5 minutes, discarding any key older than this. |
-| `FORMAT` | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, or `fields` — identical to `grayquery` (see [Output formats](#output-formats)). |
-| — | `--fields` | — | Comma-separated field list; required (non-empty) only when `--format fields`. Entries are trimmed of whitespace; blank entries are dropped. |
+| `FORMAT` | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, `fields`, or `logfmt` — identical to `grayquery` (see [Output formats](#output-formats)). |
+| — | `--fields` | — | Comma-separated field list for `--format fields` or `logfmt`; given without `--format`/`-o`, it implies `--format fields` (overriding `FORMAT`). Combining it with `line`, `text` or `json` is an error. Entries are trimmed of whitespace; blank entries are dropped. |
 
 ### How the poll loop works
 
@@ -80,7 +80,7 @@ arrived messages, like `tail -f`. Runs until interrupted (Ctrl+C / SIGTERM).
   bounded by the shutdown context, so a slow request doesn't block exit.
 - **Output**: one record per new message. The default `line` format is
   `[timestamp] source: message` — any field Graylog's response doesn't include
-  renders as `<nil>`. `--format`/`-o` selects `text`, `json`, or `fields`
+  renders as `<nil>`. `--format`/`-o` selects `text`, `json`, `fields`, or `logfmt`
   instead; the formats are identical to `grayquery`'s (see
   [Output formats](#output-formats)).
 
@@ -139,8 +139,8 @@ Graylog's keyword search endpoint, paginating until all matches are fetched
 | — | `--begin`, `-b` | — | Start of the time window. At least one of `--begin`/`--end` is required. |
 | — | `--end`, `-e` | — | End of the time window. |
 | — | `--query`, `-q` | `*` | Search query string. May also be given positionally (see below); defaults to `*` (match everything) if left empty. |
-| — | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, or `fields`. |
-| — | `--fields` | — | Comma-separated field list; required (non-empty) only when `--format fields`. Entries are trimmed of whitespace; blank entries are dropped. |
+| — | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, `fields`, or `logfmt`. |
+| — | `--fields` | — | Comma-separated field list for `--format fields` or `logfmt`; given without `--format`/`-o`, it implies `--format fields` (overriding `FORMAT`). Combining it with `line`, `text` or `json` is an error. Entries are trimmed of whitespace; blank entries are dropped. |
 | `TIMEZONE` | `--timezone`, `-tz` | `UTC` | Timezone Graylog uses to resolve `--begin`/`--end`. Graylog requires a non-empty value here, so leaving this unset always falls back to `UTC` rather than an empty string. |
 
 ### How the search works
@@ -183,7 +183,18 @@ Graylog's keyword search endpoint, paginating until all matches are fetched
   message, not just timestamp/source/message.
 - **`fields`** — tab-separated values, in the exact order given to
   `--fields`. A field missing from a given message renders as an empty
-  column rather than erroring.
+  column rather than erroring. Backslashes, newlines, carriage returns and
+  tabs inside a value are escaped as `\\`, `\n`, `\r` and `\t`, so every
+  message is exactly one line with a fixed number of columns. Passing
+  `--fields` without `--format`/`-o` selects this format automatically.
+- **`logfmt`** — space-separated `key=value` pairs, one message per line.
+  Without `--fields`, every field is included: `timestamp`, `source` and
+  `message` first, then the rest sorted. With `--fields`, exactly those keys
+  are emitted in that order, and a missing field renders as `key=` (so a
+  misspelled field name is visible). A value is double-quoted, Go-style, when
+  it contains a space, `=`, `"`, `\` or a control character; embedded
+  newlines become `\n`, so one message is always one line. Example:
+  `timestamp=2026-10-23T23:11:01.498Z AppName=testapp level=1 message="test message short version tcp"`
 
 ### grayquery examples (verified)
 

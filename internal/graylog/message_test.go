@@ -162,3 +162,102 @@ func TestMessageKey(t *testing.T) {
 		t.Fatalf("MessageKey = %q, want %q", got, want)
 	}
 }
+
+func TestValidateFormatRejectsFieldsWithOtherFormat(t *testing.T) {
+	for _, f := range []string{"line", "text", "json"} {
+		if err := ValidateFormat(f, []string{"a"}); err == nil {
+			t.Errorf("ValidateFormat(%q, [a]) should error", f)
+		}
+	}
+}
+
+func TestResolveFormat(t *testing.T) {
+	cases := []struct {
+		format   string
+		explicit bool
+		fields   []string
+		want     string
+	}{
+		{"line", false, nil, "line"},
+		{"line", false, []string{"a"}, "fields"},
+		{"text", false, []string{"a"}, "fields"}, // FORMAT env default yields to --fields
+		{"json", true, []string{"a"}, "json"},
+		{"text", true, nil, "text"},
+	}
+	for _, c := range cases {
+		if got := ResolveFormat(c.format, c.explicit, c.fields); got != c.want {
+			t.Errorf("ResolveFormat(%q, %v, %v) = %q, want %q", c.format, c.explicit, c.fields, got, c.want)
+		}
+	}
+}
+
+func TestFormatFieldsEscapes(t *testing.T) {
+	msg := map[string]interface{}{"a": "line1\nline2", "b": "x\ty\\z\r"}
+	got := FormatFields(msg, []string{"a", "b"})
+	want := `line1\nline2` + "\t" + `x\ty\\z\r`
+	if got != want {
+		t.Fatalf("FormatFields = %q, want %q", got, want)
+	}
+}
+
+func TestFormatLogfmtDefaultOrder(t *testing.T) {
+	msg := map[string]interface{}{
+		"timestamp": "2024-01-02T15:04:05.000Z",
+		"source":    "host1",
+		"message":   "hello world",
+		"level":     6,
+		"facility":  "gelf",
+	}
+	got := FormatLogfmt(msg, nil)
+	want := `timestamp=2024-01-02T15:04:05.000Z source=host1 message="hello world" facility=gelf level=6`
+	if got != want {
+		t.Fatalf("FormatLogfmt = %q, want %q", got, want)
+	}
+}
+
+func TestFormatLogfmtFields(t *testing.T) {
+	msg := map[string]interface{}{
+		"level":        1,
+		"full_message": "dont\n worry",
+		"nothing":      nil,
+	}
+	got := FormatLogfmt(msg, []string{"level", "missing", "full_message", "nothing"})
+	want := `level=1 missing= full_message="dont\n worry" nothing=`
+	if got != want {
+		t.Fatalf("FormatLogfmt = %q, want %q", got, want)
+	}
+}
+
+func TestLogfmtValue(t *testing.T) {
+	cases := map[string]string{
+		"":          "",
+		"plain":     "plain",
+		"a b":       `"a b"`,
+		"k=v":       `"k=v"`,
+		`say "hi"`:  `"say \"hi\""`,
+		`C:\path`:   `"C:\\path"`,
+		"tab\there": `"tab\there"`,
+		"héllo":     "héllo",
+	}
+	for in, want := range cases {
+		if got := logfmtValue(in); got != want {
+			t.Errorf("logfmtValue(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestValidateFormatLogfmt(t *testing.T) {
+	if err := ValidateFormat("logfmt", nil); err != nil {
+		t.Errorf("ValidateFormat(logfmt, nil) = %v, want nil", err)
+	}
+	if err := ValidateFormat("logfmt", []string{"a"}); err != nil {
+		t.Errorf("ValidateFormat(logfmt, [a]) = %v, want nil", err)
+	}
+}
+
+func TestFormatMessageLogfmt(t *testing.T) {
+	got, err := FormatMessage(map[string]interface{}{"source": "h"}, "logfmt", []string{"source"})
+	if err != nil || got != "source=h" {
+		t.Errorf("FormatMessage(logfmt) = %q, %v; want %q", got, err, "source=h")
+	}
+}

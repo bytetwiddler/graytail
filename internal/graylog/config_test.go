@@ -144,3 +144,19 @@ func TestApplyDefaults(t *testing.T) {
 		t.Errorf("StreamID = %q, want preserved custom", c.StreamID)
 	}
 }
+
+func TestFlagPassed(t *testing.T) {
+	fs := flag.NewFlagSet("t", flag.ContinueOnError)
+	var s string
+	fs.StringVar(&s, "format", "line", "")
+	fs.StringVar(&s, "o", "line", "")
+	if err := fs.Parse([]string{"-o", "json"}); err != nil {
+		t.Fatal(err)
+	}
+	if !FlagPassed(fs, "format", "o") {
+		t.Error("FlagPassed(format, o) = false, want true")
+	}
+	if FlagPassed(fs, "format") {
+		t.Error("FlagPassed(format) = true, want false")
+	}
+}

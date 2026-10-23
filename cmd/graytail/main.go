@@ -43,9 +43,9 @@ func main() {
 		dupRet   = flag.Duration("dup-retention", defaultDupRetention, "How long to remember seen messages to avoid duplicates (e.g., 1h)")
 	)
 	var format, fieldsCSV string
-	flag.StringVar(&format, "format", defaultFormat, "Output format: line, text, json, or fields (or set FORMAT)")
+	flag.StringVar(&format, "format", defaultFormat, "Output format: line, text, json, fields, or logfmt (or set FORMAT)")
 	flag.StringVar(&format, "o", defaultFormat, "Shorthand for --format")
-	flag.StringVar(&fieldsCSV, "fields", "", "Comma-separated field list for --format fields")
+	flag.StringVar(&fieldsCSV, "fields", "", "Comma-separated field list for --format fields or logfmt (implies --format fields when --format is not given)")
 	flag.Parse()
 
 	if err := cfg.Validate(); err != nil {
@@ -54,6 +54,7 @@ func main() {
 	cfg.ApplyDefaults()
 
 	fields := graylog.ParseFields(fieldsCSV)
+	format = graylog.ResolveFormat(format, graylog.FlagPassed(flag.CommandLine, "format", "o"), fields)
 	if err := graylog.ValidateFormat(format, fields); err != nil {
 		log.Fatalln(err)
 	}
