@@ -122,6 +122,20 @@ func RegisterCommonFlags(fs *flag.FlagSet) *Config {
 	return cfg
 }
 
+// FlagPassed reports whether any of the named flags was explicitly set on the
+// command line when fs was parsed.
+func FlagPassed(fs *flag.FlagSet, names ...string) bool {
+	passed := false
+	fs.Visit(func(f *flag.Flag) {
+		for _, n := range names {
+			if f.Name == n {
+				passed = true
+			}
+		}
+	})
+	return passed
+}
+
 // ApplyDefaults fills in derived defaults that depend on other values, such as
 // falling back to the "All messages" stream when none is configured.
 func (c *Config) ApplyDefaults() {

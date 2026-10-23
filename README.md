@@ -61,15 +61,16 @@ Additional flags:
 | `POLL` | `-poll` | `10s` | Polling interval between requests |
 | `LOOKBACK` | `-lookback` | `30` | Initial lookback window, in seconds |
 | `DUP_RETENTION` | `-dup-retention` | `1h` | How long to remember seen messages to avoid duplicates |
-| `FORMAT` | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, or `fields` |
-| — | `--fields` | — | Comma-separated field list, required when `--format fields` |
+| `FORMAT` | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, `fields`, or `logfmt` |
+| — | `--fields` | — | Comma-separated field list for `--format fields` or `logfmt`; given alone, it implies `--format fields` |
 
 Output formats (shared with `grayquery`, see [below](#grayquery--bounded-search)):
 
 - `line` — `[timestamp] source: message`
 - `text` — the same header line plus every remaining field, sorted, indented beneath it (full GELF message as text)
 - `json` — the raw GELF message as compact JSON, one per line
-- `fields` — tab-separated values for the fields listed in `--fields`
+- `fields` — tab-separated values for the fields listed in `--fields`; tabs, newlines and backslashes in values are escaped (`\t`, `\n`, `\\`)
+- `logfmt` — space-separated `key=value` pairs, quoting values that need it; all fields (timestamp/source/message first) or just those in `--fields`
 
 ### grayquery — bounded search
 
@@ -93,8 +94,8 @@ At least one of `--begin`/`--end` is required. The query itself may be given wit
 | — | `--begin`, `-b` | — | Start of the time window |
 | — | `--end`, `-e` | — | End of the time window |
 | — | `--query`, `-q` | `*` | Graylog search query string (may also be positional) |
-| — | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, or `fields` |
-| — | `--fields` | — | Comma-separated field list, required when `--format fields` |
+| — | `--format`, `-o` | `line` | Output format: `line`, `text`, `json`, `fields`, or `logfmt` |
+| — | `--fields` | — | Comma-separated field list for `--format fields` or `logfmt`; given alone, it implies `--format fields` |
 | `TIMEZONE` | `--timezone`, `-tz` | `UTC` | Timezone used to resolve `--begin`/`--end` |
 
 Output formats:
@@ -102,7 +103,8 @@ Output formats:
 - `line` — `[timestamp] source: message`
 - `text` — the same header line plus every remaining field, sorted, indented beneath it (full GELF message as text)
 - `json` — the raw message as compact JSON, one per line
-- `fields` — tab-separated values for the fields listed in `--fields`, e.g. `--format fields --fields source,message`
+- `fields` — tab-separated values for the fields listed in `--fields`, e.g. `--fields source,message` (`--format fields` is implied); tabs, newlines and backslashes in values are escaped (`\t`, `\n`, `\\`)
+- `logfmt` — space-separated `key=value` pairs, quoting values that need it; all fields (timestamp/source/message first) or just those in `--fields`, e.g. `-o logfmt --fields source,message`
 
 ## Development
 
