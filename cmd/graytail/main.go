@@ -142,7 +142,10 @@ func main() {
 				if backoff < maxBackoff {
 					backoff *= 2
 				}
-				time.Sleep(backoff)
+				if !sleepCtx(ctx, backoff) {
+					log.Println("shutting down")
+					return
+				}
 				continue
 			}
 
@@ -150,7 +153,10 @@ func main() {
 			var apiErr *graylog.APIError
 			if errors.As(err, &apiErr) {
 				log.Printf("%v\n", apiErr)
-				time.Sleep(*poll)
+				if !sleepCtx(ctx, *poll) {
+					log.Println("shutting down")
+					return
+				}
 				continue
 			}
 
@@ -158,7 +164,10 @@ func main() {
 			var decErr *graylog.DecodeError
 			if errors.As(err, &decErr) {
 				log.Printf("%v\n", decErr)
-				time.Sleep(*poll)
+				if !sleepCtx(ctx, *poll) {
+					log.Println("shutting down")
+					return
+				}
 				continue
 			}
 
@@ -172,7 +181,10 @@ func main() {
 				if backoff < maxBackoff {
 					backoff *= 2
 				}
-				time.Sleep(backoff)
+				if !sleepCtx(ctx, backoff) {
+					log.Println("shutting down")
+					return
+				}
 				continue
 			}
 		}
@@ -213,12 +225,22 @@ func main() {
 		}
 
 		// Wait until next poll or until signaled
-		select {
-		case <-time.After(*poll):
-			continue
-		case <-ctx.Done():
+		if !sleepCtx(ctx, *poll) {
 			log.Println("shutting down")
 			return
 		}
+	}
+}
+
+// sleepCtx waits for d or until ctx is canceled, whichever comes first. It
+// reports whether the full duration elapsed (false means ctx was canceled).
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
