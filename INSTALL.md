@@ -48,6 +48,23 @@ Pre-built binaries are published on the [releases page](https://github.com/bytet
 
 To uninstall: `sudo apt remove graytail`.
 
+## Arch Linux (.pkg.tar.zst release)
+
+1. Download the package, `graytail-X.Y.Z-1-x86_64.pkg.tar.zst`.
+2. Install it:
+
+   ```bash
+   sudo pacman -U ./graytail-X.Y.Z-1-x86_64.pkg.tar.zst
+   ```
+
+   This installs `graytail` and `grayquery` to `/usr/bin/`, already on `PATH`. The binaries are statically linked, so there are no runtime dependencies.
+
+3. Set up environment variables — see [Environment variables (macOS/Linux shells)](#environment-variables-macoslinux-shells) below — then run `graytail` or `grayquery` from anywhere.
+
+To uninstall: `sudo pacman -R graytail`.
+
+To build the package yourself from a checkout, run `make arch` (requires `go` and `makepkg`; see [packaging/arch/README.md](packaging/arch/README.md)).
+
 ## Windows (zip release)
 
 1. Download the release archive, `graytail-vX.Y.Z.zip`.
