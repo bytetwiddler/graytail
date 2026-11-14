@@ -42,7 +42,13 @@ ARCH_STAGE := dist/arch
 ARCH_TARBALL := $(DEB_PKG)-$(ARCH_PKGVER).tar.gz
 ARCH_FILE := $(DEB_PKG)-$(ARCH_PKGVER)-$(ARCH_PKGREL)-$(PKG_ARCH).pkg.tar.zst
 
-.PHONY: all build build-all test zip deb arch clean
+# macOS package variables
+OSX_ARCH := $(shell uname -m)
+OSX_STAGE := dist/osx/stage
+OSX_PAYLOAD_DIR := $(OSX_STAGE)/payload
+OSX_PKG_NAME := $(DEB_PKG)-$(VERSION)-$(OSX_ARCH).pkg
+
+.PHONY: all build build-all test zip deb arch osx clean
 
 all: build
 
@@ -135,5 +141,60 @@ arch:
 	echo "Files installed:"; \
 	pacman -Qlpq $(CURDIR)/$(ARCH_FILE) | grep -v '/$$' | sed 's/^/  /'
 
+# Build a macOS .pkg installer package. Auto-detects the host architecture (arm64 or amd64)
+# and creates a native installer with both graytail and grayquery binaries.
+osx:
+	@command -v pkgbuild >/dev/null || { echo "pkgbuild not found; install Xcode Command Line Tools (xcode-select --install)"; exit 1; }
+	@set -e; \
+	echo "Detecting macOS architecture..."; \
+	UNAME_ARCH=$$(uname -m); \
+	echo "Building for $$UNAME_ARCH..."; \
+	\
+	case $$UNAME_ARCH in \
+		arm64) GOARCH=arm64 ;; \
+		x86_64) GOARCH=amd64 ;; \
+		*) echo "Unsupported architecture: $$UNAME_ARCH"; exit 1 ;; \
+	esac; \
+	\
+	echo "Building darwin/$$GOARCH binaries..."; \
+	mkdir -p $(OUTDIR)/darwin/$$GOARCH; \
+	for cmd in $(CMDS); do \
+		echo "Building $$cmd"; \
+		GOOS=darwin GOARCH=$$GOARCH go build -o $(OUTDIR)/darwin/$$GOARCH/$$cmd ./cmd/$$cmd; \
+	done; \
+	\
+	echo "Creating macOS package..."; \
+	rm -rf $(OSX_STAGE); \
+	mkdir -p $(OSX_PAYLOAD_DIR)/usr/local/bin; \
+	\
+	cp $(OUTDIR)/darwin/$$GOARCH/* $(OSX_PAYLOAD_DIR)/usr/local/bin/; \
+	chmod +x $(OSX_PAYLOAD_DIR)/usr/local/bin/*; \
+	\
+	pkgbuild \
+		--root $(OSX_PAYLOAD_DIR) \
+		--install-location / \
+		--identifier com.graytail.pkg \
+		--version $(DEB_VERSION) \
+		--ownership preserve \
+		$(OSX_PKG_NAME); \
+	\
+	echo ""; \
+	echo "Created $(OSX_PKG_NAME)"; \
+	echo ""; \
+	echo "Install:"; \
+	echo "  installer -pkg $(OSX_PKG_NAME) -target /"; \
+	echo ""; \
+	echo "Uninstall:"; \
+	echo "  sudo rm /usr/local/bin/graytail"; \
+	echo "  sudo rm /usr/local/bin/grayquery"; \
+	echo ""; \
+	echo "Files installed:"; \
+	echo "  /usr/local/bin/graytail"; \
+	echo "  /usr/local/bin/grayquery"; \
+	echo ""; \
+	echo "Verify installation:"; \
+	echo "  graytail -h"; \
+	echo "  grayquery -h"
+
 clean:
-	rm -rf $(OUTDIR) $(COVERFILE) dist $(DEB_PKG)-*.zip $(DEB_PKG)_*.deb $(DEB_PKG)-*.pkg.tar.*
+	rm -rf $(OUTDIR) $(COVERFILE) dist $(DEB_PKG)-*.zip $(DEB_PKG)_*.deb $(DEB_PKG)-*.pkg.tar.* $(DEB_PKG)-*.pkg
