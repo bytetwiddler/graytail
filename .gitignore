@@ -45,3 +45,4 @@ dist/
 /grayquery
 graytail-*.zip
 graytail_*.deb
+graytail-*.pkg.tar.*

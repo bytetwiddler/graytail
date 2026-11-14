@@ -23,6 +23,13 @@ This builds `bin/graytail` and `bin/grayquery` for your host platform. To cross-
 make build-all   # linux/darwin/windows x amd64/arm64 -> bin/<os>/<arch>/
 ```
 
+To build distribution packages:
+
+```bash
+make deb    # Debian/Ubuntu .deb
+make arch   # Arch Linux .pkg.tar.zst (requires makepkg)
+```
+
 ## Configuration
 
 Both tools read the same connection settings, resolved in this order of precedence: **command-line flag > environment variable > `.env` file > default**.

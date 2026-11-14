@@ -32,7 +32,17 @@ DEB_PKG := graytail
 DEB_STAGE := dist/deb/$(DEB_PKG)_$(DEB_VERSION)_$(DEB_ARCH)
 DEB_FILE := $(DEB_PKG)_$(DEB_VERSION)_$(DEB_ARCH).deb
 
-.PHONY: all build build-all test zip deb clean
+# Arch pkgver may not contain hyphens: v1.0.0-3-gabc1234-dirty becomes
+# 1.0.0.r3.gabc1234.dirty. A bare commit hash (no tags) becomes 0.0.0.r0.g<hash>.
+ARCH_PKGVER := $(shell echo '$(DEB_VERSION)' | \
+	sed -E '/^[0-9]+\./!s/^/0.0.0-0-g/; s/-([0-9]+)-g/.r\1.g/; s/-/./g')
+ARCH_PKGREL ?= 1
+PKG_ARCH := $(shell uname -m)
+ARCH_STAGE := dist/arch
+ARCH_TARBALL := $(DEB_PKG)-$(ARCH_PKGVER).tar.gz
+ARCH_FILE := $(DEB_PKG)-$(ARCH_PKGVER)-$(ARCH_PKGREL)-$(PKG_ARCH).pkg.tar.zst
+
+.PHONY: all build build-all test zip deb arch clean
 
 all: build
 
@@ -91,5 +101,39 @@ deb:
 	dpkg-deb --build --root-owner-group $(DEB_STAGE) $(DEB_FILE); \
 	echo "Created $(DEB_FILE)"
 
+# Build an Arch Linux package with makepkg from packaging/arch/PKGBUILD.template
+# (see packaging/arch/README.md). Binaries are static (CGO_ENABLED=0) and built
+# for the host architecture. ARCH_NOCHECK=1 skips the test suite.
+arch:
+	@command -v makepkg >/dev/null || { echo "makepkg not found; this target requires Arch Linux (pacman)"; exit 1; }
+	@command -v go >/dev/null || { echo "go not found; install it (sudo pacman -S go)"; exit 1; }
+	@[ "$$(id -u)" != 0 ] || { echo "makepkg cannot be run as root; run make arch as a regular user"; exit 1; }
+	@set -e; \
+	rm -rf $(ARCH_STAGE); mkdir -p $(ARCH_STAGE); \
+	nodeps=; if ! pacman -T go >/dev/null 2>&1; then \
+		echo "note: go is not a pacman package here (e.g. mise/asdf); using $$(command -v go) with --nodeps"; \
+		nodeps=--nodeps; \
+	fi; \
+	ref=$$(git stash create); ref=$${ref:-HEAD}; \
+	git archive --format=tar.gz --prefix=$(DEB_PKG)-$(ARCH_PKGVER)/ -o $(ARCH_STAGE)/$(ARCH_TARBALL) $$ref; \
+	sum=$$(sha256sum $(ARCH_STAGE)/$(ARCH_TARBALL) | cut -d' ' -f1); \
+	sed -e 's/__PKGVER__/$(ARCH_PKGVER)/' -e 's/__PKGREL__/$(ARCH_PKGREL)/' -e "s/__SHA256__/$$sum/" \
+		packaging/arch/PKGBUILD.template > $(ARCH_STAGE)/PKGBUILD; \
+	cd $(ARCH_STAGE) && \
+	BUILDDIR=$(CURDIR)/$(ARCH_STAGE)/build SRCDEST=$(CURDIR)/$(ARCH_STAGE) PKGDEST=$(CURDIR) \
+	PKGEXT=.pkg.tar.zst \
+		makepkg -f --cleanbuild --noconfirm $$nodeps $(if $(ARCH_NOCHECK),--nocheck); \
+	echo ""; \
+	echo "Created $(ARCH_FILE)"; \
+	echo ""; \
+	echo "Install:"; \
+	echo "  sudo pacman -U $(CURDIR)/$(ARCH_FILE)"; \
+	echo ""; \
+	echo "Uninstall:"; \
+	echo "  sudo pacman -R $(DEB_PKG)"; \
+	echo ""; \
+	echo "Files installed:"; \
+	pacman -Qlpq $(CURDIR)/$(ARCH_FILE) | grep -v '/$$' | sed 's/^/  /'
+
 clean:
-	rm -rf $(OUTDIR) $(COVERFILE) dist $(DEB_PKG)-*.zip $(DEB_PKG)_*.deb
+	rm -rf $(OUTDIR) $(COVERFILE) dist $(DEB_PKG)-*.zip $(DEB_PKG)_*.deb $(DEB_PKG)-*.pkg.tar.*
